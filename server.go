@@ -5,7 +5,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/nanafox/todo-backend/config"
 	"github.com/nanafox/todo-backend/controllers"
+	"github.com/nanafox/todo-backend/models"
 )
 
 func main() {
@@ -17,8 +19,13 @@ func main() {
 	auth := v1.Group("/auth")
 	tasks := v1.Group("/tasks")
 
+	config.DB.AutoMigrate(
+		&models.User{}, &models.Task{}, &models.AccountIdentity{},
+	)
+
 	tasks.Get("/", controllers.ListAllTasks)
 	auth.Post("/login", controllers.Login)
+	auth.Post("/register", controllers.Register)
 
 	log.Fatal(app.Listen(":3000"))
 }
