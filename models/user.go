@@ -32,11 +32,23 @@ type LoginUser struct {
 	Password string `json:"password" validate:"required"`
 }
 
+func (user *User) FindById(id uint) (err error) {
+	result := config.DB.Where("users.id = ?", id).First(user)
+
+	if result.Error != nil {
+		log.Printf("User with ID: %v not found\n", id)
+		return result.Error
+	}
+
+	log.Printf("User with ID %v found\n", id)
+	return nil
+}
+
 func (user *User) FindByEmail(email string) (err error) {
 	result := config.DB.Where("users.email = ?", email).First(user)
 
 	if result.Error != nil {
-		log.Printf("User with ID: %v not found\n", user.ID)
+		log.Printf("User with email: %v not found\n", email)
 		return result.Error
 	}
 

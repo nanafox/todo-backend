@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	customErrors "github.com/nanafox/todo-backend/errors"
 	"github.com/nanafox/todo-backend/models"
+	"github.com/nanafox/todo-backend/utils"
 )
 
 func Register(c *fiber.Ctx) error {
@@ -80,35 +81,94 @@ func Login(c *fiber.Ctx) (err error) {
 
 	user := &models.User{}
 	if err = user.FindByEmail(credentials.Email); err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"success": false,
-			"message": "Invalid credentials",
-			"status":  fiber.StatusUnauthorized,
-		})
+		return c.Status(fiber.StatusUnauthorized).JSON(
+			customErrors.HandleUnauthorizedError(customErrors.ErrInvalidCredentials.Error()),
+		)
 	}
 
 	user.Password = credentials.Password
 	authenticated, err := user.Authenticate()
+	if err != nil || !authenticated {
+		return c.Status(fiber.StatusUnauthorized).JSON(customErrors.HandleUnauthorizedError(err.Error()))
+	}
+
+	tokens, err := utils.GenerateJWT(&utils.JWTClaims{
+		Sub:   user.ID,
+		Email: user.Email,
+		Name:  user.Name(),
+	}, utils.GenerateJWTOptions{AddNewRefreshToken: true})
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"success": false,
-			"message": err.Error(),
-			"status":  fiber.StatusUnauthorized,
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(
+			fiber.Map{
+				"success":     false,
+				"message":     "Internal server error",
+				"status_code": fiber.StatusInternalServerError,
+			},
+		)
 	}
 
-	if !authenticated {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"success": false,
-			"message": "Invalid credentials",
-			"status":  fiber.StatusUnauthorized,
-		})
-	}
-
-	// TODO: Generate and return JWT token
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"success": true,
-		"token":   "abc123",
 		"status":  fiber.StatusOK,
+		"message": "Log in successful",
+		"data": fiber.Map{
+			"access_token":  tokens["access_token"],
+			"refresh_token": tokens["refresh_token"],
+		},
+	})
+}
+
+func RefreshToken(c *fiber.Ctx) error {
+	type RefreshTokenRequest struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	var req RefreshTokenRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid request body",
+			"status":  fiber.StatusBadRequest,
+		})
+	}
+
+	refreshToken := req.RefreshToken
+
+	userId, err := utils.VerifyJWT(refreshToken)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(
+			customErrors.HandleUnauthorizedError("Invalid refresh token"),
+		)
+	}
+
+	user := &models.User{}
+	if err := user.FindById(userId); err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(
+			customErrors.HandleUnauthorizedError("Invalid refresh token or unauthenticated"),
+		)
+	}
+	tokens, err := utils.GenerateJWT(&utils.JWTClaims{
+		Sub:   user.ID,
+		Email: user.Email,
+		Name:  user.Name(),
+	}, utils.GenerateJWTOptions{AddNewRefreshToken: false})
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success":     false,
+			"message":     "Internal server error",
+			"status_code": fiber.StatusInternalServerError,
+		})
+	}
+
+	tokens["refresh_token"] = refreshToken // Keep the same refresh token
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"status":  fiber.StatusOK,
+		"message": "Token refreshed successfully",
+		"data": fiber.Map{
+			"access_token":  tokens["access_token"],
+			"refresh_token": tokens["refresh_token"],
+		},
 	})
 }
