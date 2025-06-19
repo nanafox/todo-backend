@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/nanafox/todo-backend/config"
 	"github.com/nanafox/todo-backend/controllers"
@@ -14,6 +15,7 @@ import (
 func main() {
 	app := fiber.New(fiber.Config{AppName: "Big Guys Todo Backend"})
 	app.Use(logger.New())
+	app.Use(cors.New())
 
 	api := app.Group("/api")
 	v1 := api.Group("/v1")
@@ -32,9 +34,12 @@ func main() {
 	auth.Post("/login", controllers.Login)
 	auth.Post("/register", controllers.Register)
 	auth.Post("/refresh-token", controllers.RefreshToken)
+	auth.Post("/google/callback", controllers.GoogleOAuth)
 
-	// auth.Use()
-	// auth.Post("/logout", controllers.Logout)
+	//
+
+	auth.Use(utils.BearerTokenAuthenticationMiddleware())
+	auth.Post("/logout", controllers.Logout)
 
 	log.Fatal(app.Listen(":3000"))
 }

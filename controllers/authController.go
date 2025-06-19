@@ -172,3 +172,24 @@ func RefreshToken(c *fiber.Ctx) error {
 		},
 	})
 }
+
+func GoogleOAuth(c *fiber.Ctx) error {
+	// This function will handle the Google OAuth callback
+	// You can implement the logic to handle the OAuth flow here
+	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
+		"success": false,
+		"message": "Google OAuth not implemented yet",
+		"status":  fiber.StatusNotImplemented,
+	})
+}
+
+func Logout(c *fiber.Ctx) error {
+	// This function will handle user logout
+	// In a stateless application, logout is typically handled by deleting the token on the client side.
+	// You can also implement token invalidation logic if needed.
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "Logged out successfully",
+		"status":  fiber.StatusOK,
+	})
+}
