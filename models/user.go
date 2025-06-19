@@ -22,6 +22,7 @@ type User struct {
 	PictureUrl   string    `json:"picture_url"`
 	Password     string    `gorm:"-" json:"password" validate:"required,min=8,max=15"`
 	PasswordHash string    `json:"-" gorm:"not null"`
+	OAuthUser    bool      `gorm:"-" json:"oauth_user"`
 	Tasks        []Task    `json:"tasks"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -81,14 +82,16 @@ func (user *User) Save() (err error) {
 	}
 
 	// Validate password
-	if err := validatePassword(user.Password); err != nil {
-		return err
-	}
+	if !user.OAuthUser {
+		if err := validatePassword(user.Password); err != nil {
+			return err
+		}
 
-	// Hash password
-	user.PasswordHash, err = utils.HashPassword(user.Password)
-	if err != nil {
-		return customErrors.ErrInternal
+		// Hash password
+		user.PasswordHash, err = utils.HashPassword(user.Password)
+		if err != nil {
+			return customErrors.ErrInternal
+		}
 	}
 
 	// Try to save

@@ -2,8 +2,12 @@ package controllers
 
 import (
 	"errors"
+	"log"
+	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/nanafox/gofetch"
 	customErrors "github.com/nanafox/todo-backend/errors"
 	"github.com/nanafox/todo-backend/models"
 	"github.com/nanafox/todo-backend/utils"
@@ -174,15 +178,108 @@ func RefreshToken(c *fiber.Ctx) error {
 }
 
 func GoogleOAuth(c *fiber.Ctx) error {
-	// This function will handle the Google OAuth callback
-	// You can implement the logic to handle the OAuth flow here
-	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
-		"success": false,
-		"message": "Google OAuth not implemented yet",
-		"status":  fiber.StatusNotImplemented,
+	var body struct {
+		AccessToken string `json:"access_token"`
+	}
+
+	if err := c.BodyParser(&body); err != nil {
+		log.Println("Error parsing request body:", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	// ✅ Fetch user info from Google
+	client := gofetch.New(gofetch.Config{Timeout: 2 * time.Minute})
+	header := gofetch.Header{
+		Key:   "Authorization",
+		Value: "Bearer " + body.AccessToken,
+	}
+
+	client.Get("https://www.googleapis.com/oauth2/v3/userinfo", nil, header)
+
+	if client.Error != nil {
+		log.Println("Error fetching user info from Google:", client.Error)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success":     false,
+			"status_code": fiber.StatusInternalServerError,
+			"message":     "Failed to fetch user info from Google",
+		})
+	}
+
+	type UserInfo struct {
+		Email string `json:"email"`
+		Name  string `json:"name"`
+		Sub   string `json:"sub"` // Google user ID
+	}
+
+	var userInfo UserInfo
+
+	if err := client.ResponseToStruct(&userInfo); err != nil {
+		log.Println("Error decoding user info:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success":     false,
+			"status_code": fiber.StatusInternalServerError,
+			"message":     "Failed to decode user info",
+		})
+	}
+
+	// ✅ Extract user info
+	email := userInfo.Email
+	name := userInfo.Name
+	sub := userInfo.Sub
+
+	log.Printf("Google user info: Email: %s, Name: %s, Sub: %s\n", email, name, sub)
+
+	user := &models.User{}
+	if err := user.FindByEmail(email); err != nil {
+		nameSplit := strings.Split(name, " ")
+
+		firstName := strings.Join(nameSplit[0:len(nameSplit)-2], " ")
+		lastName := nameSplit[len(nameSplit)-1]
+
+		user.Email = email
+		user.FirstName = firstName
+		user.LastName = lastName
+		user.OAuthUser = true
+		user.Password = "Password1234"
+
+		log.Printf("User info: %+v\n", user)
+		if err = user.Save(); err != nil {
+			log.Println("Error saving user:", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success":     false,
+				"status_code": fiber.StatusInternalServerError,
+				"message":     "Failed to save user",
+			})
+		}
+	}
+
+	// ✅ Generate your own app's tokens
+	tokens, err := utils.GenerateJWT(&utils.JWTClaims{
+		Email: user.Email,
+		Name:  user.Name(),
+		Sub:   user.ID,
+	}, utils.GenerateJWTOptions{AddNewRefreshToken: true})
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success":     false,
+			"status_code": 500,
+			"message":     "Internal Server Error",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"status":  fiber.StatusOK,
+		"message": "Google account verified",
+		"data": fiber.Map{
+			"access_token":  tokens["access_token"],
+			"refresh_token": tokens["refresh_token"],
+		},
 	})
 }
 
+// Logout handles user logout by invalidating the session or token.
 func Logout(c *fiber.Ctx) error {
 	// This function will handle user logout
 	// In a stateless application, logout is typically handled by deleting the token on the client side.
