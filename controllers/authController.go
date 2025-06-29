@@ -86,14 +86,16 @@ func Login(c *fiber.Ctx) (err error) {
 	user := &models.User{}
 	if err = user.FindByEmail(credentials.Email); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(
-			customErrors.HandleUnauthorizedError(customErrors.ErrInvalidCredentials.Error()),
+			customErrors.HandleUnauthorizedError(customErrors.ErrInvalidCredentials),
 		)
 	}
 
 	user.Password = credentials.Password
 	authenticated, err := user.Authenticate()
 	if err != nil || !authenticated {
-		return c.Status(fiber.StatusUnauthorized).JSON(customErrors.HandleUnauthorizedError(err.Error()))
+		return c.
+			Status(fiber.StatusUnauthorized).
+			JSON(customErrors.HandleUnauthorizedError(err))
 	}
 
 	tokens, err := utils.GenerateJWT(&utils.JWTClaims{
@@ -141,14 +143,14 @@ func RefreshToken(c *fiber.Ctx) error {
 	userId, err := utils.VerifyJWT(refreshToken)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(
-			customErrors.HandleUnauthorizedError("Invalid refresh token"),
+			customErrors.HandleUnauthorizedError(errors.New("invalid refresh token")),
 		)
 	}
 
 	user := &models.User{}
 	if err := user.FindById(userId); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(
-			customErrors.HandleUnauthorizedError("Invalid refresh token or unauthenticated"),
+			customErrors.HandleUnauthorizedError(errors.New("invalid refresh token or unauthenticated")),
 		)
 	}
 	tokens, err := utils.GenerateJWT(&utils.JWTClaims{

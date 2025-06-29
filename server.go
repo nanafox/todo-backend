@@ -23,20 +23,24 @@ func main() {
 	auth := v1.Group("/auth")
 	tasks := v1.Group("/tasks")
 
-	config.DB.AutoMigrate(
+	err := config.DB.AutoMigrate(
 		&models.User{}, &models.Task{}, &models.AccountIdentity{},
 	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	tasks.Use(utils.BearerTokenAuthenticationMiddleware())
 	tasks.Get("/", controllers.ListAllTasks)
 
 	// auth endpoints
+
+	// api/v1/auth/login
 	auth.Post("/login", controllers.Login)
+	// api/v1/auth/register
 	auth.Post("/register", controllers.Register)
 	auth.Post("/refresh-token", controllers.RefreshToken)
 	auth.Post("/google/callback", controllers.GoogleOAuth)
-
-	//
 
 	auth.Use(utils.BearerTokenAuthenticationMiddleware())
 	auth.Post("/logout", controllers.Logout)

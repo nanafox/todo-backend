@@ -2,10 +2,8 @@ package errors
 
 import "errors"
 
-// Common errors
 var (
-	ErrInvalidInput = errors.New("invalid input provided")
-	ErrInternal     = errors.New("internal server error")
+	ErrInternal = errors.New("internal server error")
 )
 
 // Authentication errors

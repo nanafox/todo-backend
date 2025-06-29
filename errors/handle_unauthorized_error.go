@@ -2,10 +2,10 @@ package errors
 
 import "github.com/gofiber/fiber/v2"
 
-func HandleUnauthorizedError(message string) fiber.Map {
+func HandleUnauthorizedError(error error) fiber.Map {
 	return fiber.Map{
 		"success": false,
-		"message": message,
+		"error":   error.Error(),
 		"status":  fiber.StatusUnauthorized,
 	}
 }
